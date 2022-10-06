@@ -1,7 +1,5 @@
 # Graph-based Recommendation System
-DSC180B Capstone Project on Graph Data Analysis
-
-Project Website: https://nhtsai.github.io/graph-rec/
+Independant Study Project on Graph Neural Network
 
 ## Project
 
