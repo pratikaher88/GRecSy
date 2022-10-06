@@ -1,0 +1,12 @@
+# hidden/unnecessary files
+.ipynb_checkpoints
+__pycache__
+.vscode
+.DS_Store
+
+# only capturing symlinks to datasets
+/data/*
+!/data/*.json.gz
+!/data/*.b 
+/ml-1m/
+/venv/
