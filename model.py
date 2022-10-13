@@ -101,6 +101,15 @@ class MPNNPredictor(nn.Module):
         
         # graph_feats = self.readout(g, node_feats)
         # return self.predict(graph_feats)
+    
+    def get_embeddings(self, g):
+
+        g = g.to('cpu')
+        h = g.ndata.pop('age')
+        e = g.edata.pop('rating')
+        node_feats, edge_feats = h.to('cpu', dtype=torch.float), e.to('cpu', dtype=torch.float)
+
+        return self.gnn(g, node_feats, edge_feats)
 
 
 

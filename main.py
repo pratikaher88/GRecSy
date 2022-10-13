@@ -7,6 +7,8 @@ from utils import set_random_seed, collate_molgraphs, load_model, collate_movie_
 import numpy as np
 import torch
 import torch.nn as nn
+import argparse
+from configure import get_exp_configure
 
 from torch.utils.data import DataLoader
 
@@ -106,13 +108,9 @@ def run_a_train_epoch(args, epoch, model, g, node_subgraph_negative,
 
 if __name__ == "__main__":
 
-    from torch.utils.data import DataLoader
     import sys
     sys.argv=['']
     del sys
-
-    import argparse
-    from configure import get_exp_configure
 
     parser = argparse.ArgumentParser(description='Alchemy for Quantum Chemistry')
     parser.add_argument('-m', '--model', type=str, choices=['MPNN', 'SchNet', 'MGCN'], default='MPNN',
