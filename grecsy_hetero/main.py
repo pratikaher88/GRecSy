@@ -1,34 +1,110 @@
-import sys  
-sys.path.insert(0, '/Users/pratikaher/DGL/GRecSy/')
-
-from random import sample
+import pickle
+import create_graph
+import numpy as np
 import dgl
 import torch
-import torch.nn.functional as F
-import pandas as pd
-from utils import set_random_seed, collate_molgraphs, load_model, collate_movie_graphs, train_test_split_by_time, _split_data
-import numpy as np
-import torch
-import torch.nn as nn
-import argparse
-from configure import get_exp_configure
-import scipy.sparse as sp
-from torch.utils.data import DataLoader
+from model import compute_loss, max_margin_loss
 
-from dgllife.utils import EarlyStopping, Meter
-from model import compute_loss
+base_path = '/Users/pratikaher/DGL/GRecSy/saved_files/'
+epochs = 10
 
-df_rating = pd.read_csv('/Users/pratikaher/DGL/graph-rec/ml-1m/ratings.dat', sep='::', header=None, names=['user_id', 'movie_id', 'rating', 'timestamp'],  engine='python')
-df_user = pd.read_csv('/Users/pratikaher/DGL/graph-rec/ml-1m/users.dat', sep='::', header=None, names=['user_id', 'gender', 'age', 'occupation', 'zipcode'],  engine='python')
-df_movie = pd.read_csv('/Users/pratikaher/DGL/graph-rec/ml-1m/movies.dat', sep='::', header=None, names=['movie_id', 'title', 'genre'],  engine='python')
+# hetero_graph = create_graph.create_graph()
 
-df_temp = df_rating.merge(df_movie, left_on='movie_id', right_on='movie_id', how='left')
-df_final = df_temp.merge(df_user, left_on='user_id', right_on='user_id', how='left')
+# pickle down the graph for later use
+# pickle.dump(hetero_graph, open(base_path+'pickled_graph.pickle', 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
 
-df_final = df_final[["user_id","movie_id","rating","age"]]
+hetero_graph = pickle.load(open(base_path+'pickled_graph.pickle', 'rb'))
 
-print(df_final.tail())
+print(hetero_graph)
 
-hetero_graph = dgl.heterograph({('user', 'rates', 'movie'): (df_final['user_id'].to_numpy(), df_final['movie_id'].to_numpy())})
+from model import MPNNConvModel
 
+params = {'hidden_dim' : 128, 'out_dim' : 64 }
 
+dim_dict = {'user': hetero_graph.nodes['user'].data['features'].shape[1],
+            'movie': hetero_graph.nodes['movie'].data['features'].shape[1],
+            'out': params['out_dim'],
+            'hidden': params['hidden_dim']}
+
+train_eids_dict = {}
+valid_eids_dict = {}
+
+eids = np.arange(hetero_graph.number_of_edges(etype='rates'))
+eids = np.random.permutation(eids)
+
+test_size = int(len(eids) * 0.1)
+valid_size = int(len(eids) * 0.1)
+train_size = len(eids) - test_size - valid_size
+
+for e in hetero_graph.etypes:
+    train_eids_dict[e] = eids[:train_size]
+    valid_eids_dict[e] = eids[train_size:train_size+valid_size]
+
+sampler = dgl.dataloading.MultiLayerNeighborSampler([15, 10, 5])
+
+train_dataloader = dgl.dataloading.EdgeDataLoader(
+        hetero_graph, train_eids_dict, 
+        sampler, negative_sampler=dgl.dataloading.negative_sampler.Uniform(5), 
+        shuffle=True, drop_last=False,
+        batch_size=16
+        )
+
+print("Length of dataloader is",len(train_dataloader))
+
+valid_dataloader = dgl.dataloading.EdgeDataLoader(
+        hetero_graph, valid_eids_dict, 
+        sampler, negative_sampler=dgl.dataloading.negative_sampler.Uniform(5), 
+        shuffle=True, drop_last=False,
+        batch_size=16
+        )
+
+def train_single_epoch(train_dataloader):
+    
+    total_loss = 0
+    batch_num = 0
+
+    for _, pos_g, neg_g, blocks in train_dataloader:
+        
+        optimizer.zero_grad()
+
+        input_features = blocks[0].srcdata['features']
+        
+        _, pos_score, neg_score = model(blocks,
+                                        input_features,
+                                        pos_g,
+                                        neg_g)
+        
+        batch_num += 1
+        # print(pos_score, neg_score)
+        # print(batch_num%10000)
+        if batch_num%10000 == 0:
+            print(batch_num)
+
+        loss = max_margin_loss(pos_score, neg_score)
+
+#         optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        total_loss += loss.item()
+    
+    return total_loss
+    
+
+model = MPNNConvModel(hetero_graph, dim_dict)
+optimizer = torch.optim.Adam(model.parameters(), lr=0.0001,weight_decay=0)
+
+for i in range(epochs):
+    
+    print(f"Epoch {i}")
+
+    pass
+    
+    training_loss = train_single_epoch(train_dataloader)
+    
+    print(f"Training Loss : {training_loss}")
+    
+#     validation_loss = validation_single_epoch(valid_dataloader)
+    
+#     print(f"Validation Loss : {validation_loss}")
+    

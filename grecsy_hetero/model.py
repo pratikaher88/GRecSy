@@ -3,9 +3,27 @@ from unittest import result
 import torch.nn as nn
 import dgl.nn.pytorch as dglnn
 import dgl.function as fn
-from grecsy_hetero.model_conv import ConvLayer
+from model_conv import ConvLayer
 import torch.nn.functional as F
 import torch
+
+def max_margin_loss(pos_score, neg_score, neg_sample_size=45):
+
+    all_scores = torch.empty(0)
+
+    for etype in pos_score.keys():
+        neg_score_tensor = neg_score[etype]
+        pos_score_tensor = pos_score[etype]
+        # print(pos_score_tensor.shape, neg_score_tensor.shape)
+        neg_score_tensor = neg_score_tensor.reshape(pos_score_tensor.shape[0], -1)
+        # print(neg_score_tensor.shape)
+        scores = neg_score_tensor - pos_score_tensor
+        relu = nn.ReLU()
+        scores = relu(scores)
+        all_scores = torch.cat((all_scores, scores), 0)
+
+    return torch.mean(all_scores)
+
 
 def compute_loss(pos_score, neg_score):
     # understand tensor shapes
