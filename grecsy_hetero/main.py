@@ -41,6 +41,7 @@ for e in hetero_graph.etypes:
     valid_eids_dict[e] = eids[train_size:train_size+valid_size]
 
 sampler = dgl.dataloading.MultiLayerNeighborSampler([15, 10, 5])
+# sampler = dgl.dataloading.MultiLayerFullNeighborSampler(3)
 
 train_dataloader = dgl.dataloading.EdgeDataLoader(
         hetero_graph, train_eids_dict, 
@@ -75,12 +76,13 @@ def train_single_epoch(train_dataloader):
                                         neg_g)
         
         batch_num += 1
-        # print(pos_score, neg_score)
-        # print(batch_num%10000)
+
         if batch_num%10000 == 0:
             print(batch_num)
 
         loss = max_margin_loss(pos_score, neg_score)
+        
+        # print("Loss value",loss)
 
 #         optimizer.zero_grad()
         loss.backward()
@@ -89,7 +91,30 @@ def train_single_epoch(train_dataloader):
         total_loss += loss.item()
     
     return total_loss
+
+def validation_single_epoch(valid_dataloader):
     
+    model.eval()
+    with torch.no_grad():
+        total_val_loss = 0
+
+        for _, pos_g, neg_g, blocks in valid_dataloader:
+
+            optimizer.zero_grad()
+
+            input_features = blocks[0].srcdata['features']
+
+            _, pos_score, neg_score = model(blocks,
+                                    input_features,
+                                    pos_g,
+                                    neg_g)
+
+            # print(pos_score, neg_score)
+            loss = max_margin_loss(pos_score, neg_score)
+
+            total_val_loss += loss.item()
+    
+    return total_val_loss
 
 model = MPNNConvModel(hetero_graph, dim_dict)
 optimizer = torch.optim.Adam(model.parameters(), lr=0.0001,weight_decay=0)
@@ -104,7 +129,7 @@ for i in range(epochs):
     
     print(f"Training Loss : {training_loss}")
     
-#     validation_loss = validation_single_epoch(valid_dataloader)
+    validation_loss = validation_single_epoch(valid_dataloader)
     
-#     print(f"Validation Loss : {validation_loss}")
+    print(f"Validation Loss : {validation_loss}")
     

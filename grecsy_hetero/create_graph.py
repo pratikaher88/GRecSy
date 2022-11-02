@@ -88,8 +88,9 @@ def _process_movie_fea(movie_data):
             title_context, year = row['title'], 1950
         else:
             title_context, year = match_res.groups()
-        
-        HM[row['movie_id']] = torch.FloatTensor([ (float(year)- 1950.0) / 100.0])
+
+        nearest_holiday = row['nearest_holiday_days']
+        HM[row['movie_id']] = torch.FloatTensor([ (float(year)- 1950.0) / 100.0, nearest_holiday])
 
     return HM
 
@@ -133,4 +134,39 @@ def _load_raw_movie_info(file_path):
         
         movie_info.drop(columns=["genres"])
 
+        # Add holiday info
+        movie_info['nearest_holiday'] = movie_info.apply(lambda row : get_next_holiday(row['year'], row['date']), axis = 1)
+        movie_info['nearest_holiday_days'] = movie_info.apply(lambda row : get_next_holiday_date(row['year'], row['date']), axis = 1)
+
+
         return movie_info
+
+def get_next_holiday(year, current_date):
+    
+    holidays_that_year = holiday_map[year]
+    min_difference = float('inf')
+    closest_holiday = ''
+    
+    for (holiday_date, holiday_name) in holidays_that_year:
+        
+        current_difference = abs((current_date - holiday_date).days)
+        
+        if current_difference < min_difference:
+            
+            closest_holiday = holiday_name
+            min_difference = current_difference
+    
+    return closest_holiday
+
+def get_next_holiday_date(year, current_date):
+    
+    holidays_that_year = holiday_map[year]
+    min_difference = float('inf')
+    
+    for (holiday_date, holiday_name) in holidays_that_year:
+        
+        current_difference = abs((current_date - holiday_date).days)
+        min_difference = min(min_difference, current_difference)
+    
+    return min_difference
+    

@@ -14,12 +14,20 @@ def max_margin_loss(pos_score, neg_score, neg_sample_size=45):
     for etype in pos_score.keys():
         neg_score_tensor = neg_score[etype]
         pos_score_tensor = pos_score[etype]
+
+        if len(pos_score_tensor.size()) != 0:
         # print(pos_score_tensor.shape, neg_score_tensor.shape)
-        neg_score_tensor = neg_score_tensor.reshape(pos_score_tensor.shape[0], -1)
-        # print(neg_score_tensor.shape)
+            neg_score_tensor = neg_score_tensor.reshape(pos_score_tensor.shape[0], -1)
+        # print(neg_score_tensor, neg_score_tensor.shape)
+        # print(pos_score_tensor, pos_score_tensor.shape)
+
+        # pos_score_tensor, neg_score_tensor = pos_score_tensor.squeeze(), neg_score_tensor.squeeze()
+
+
         scores = neg_score_tensor - pos_score_tensor
-        relu = nn.ReLU()
-        scores = relu(scores)
+        # print("subtract", scores)
+        # relu = nn.ReLU()
+        # scores = relu(scores)
         all_scores = torch.cat((all_scores, scores), 0)
 
     return torch.mean(all_scores)
@@ -29,7 +37,9 @@ def compute_loss(pos_score, neg_score):
     # understand tensor shapes
     # understand cross entropy
 
-    all_scores = 0
+    # all_scores = 0
+
+    all_scores = torch.empty(0)
 
     for etype in pos_score:
         
@@ -39,19 +49,33 @@ def compute_loss(pos_score, neg_score):
         pos_score_tensor, neg_score_tensor = pos_score_tensor.squeeze(), neg_score_tensor.squeeze()
 
         # print("INPUT TENSORS",pos_score_tensor, neg_score_tensor)
+        if len(pos_score_tensor.size()) == 0:
+            label_pos_dim = 1
+        else:
+            label_pos_dim = pos_score_tensor.shape[0]
+
+        if len(neg_score_tensor.size()) == 0:
+            label_neg_dim = 1
+        else:
+            label_neg_dim = neg_score_tensor.shape[0]
 
         # if pos_score_tensor.get_shape[1] > 0 and neg_score_tensor.get_shape[1] > 0:
-        scores = torch.cat([pos_score_tensor, neg_score_tensor])
-        labels = torch.cat([torch.ones(pos_score_tensor.shape[0]), torch.zeros(neg_score_tensor.shape[0])])
+        scores = torch.hstack([pos_score_tensor, neg_score_tensor])
+        labels = torch.cat([torch.ones(label_pos_dim), torch.zeros(label_neg_dim)])
 
-        # print(F.binary_cross_entropy_with_logits(scores, labels))
+        scores = F.binary_cross_entropy_with_logits(scores, labels)
 
-        all_scores += F.binary_cross_entropy_with_logits(scores, labels)
+        # result = torch.softmax(F.binary_cross_entropy_with_logits(scores, labels), dim = 0)
+        # relu = nn.ReLU()
+        # scores = relu(result)
 
-        # all_scores = torch.cat((all_scores, result), 0)
+        # all_scores += F.binary_cross_entropy_with_logits(scores, labels)
 
-    return all_scores
-    # return torch.mean(all_scores)
+        all_scores = torch.hstack([all_scores, scores])
+
+    # return all_scores
+    # print("mean Score",torch.mean(all_scores) )
+    return torch.mean(all_scores)
 
         # print(BCEL)
 
